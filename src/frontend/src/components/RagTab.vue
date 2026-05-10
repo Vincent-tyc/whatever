@@ -1,6 +1,8 @@
 <template>
   <div>
-    <div class="rag-status">已索引 {{ status.total_chunks || 0 }} 个知识块</div>
+    <div class="rag-status" :class="{ ready: status.has_index }">
+      {{ status.has_index ? `已索引 ${status.total_chunks || 0} 个知识块，可开始提问` : '尚未建立 RAG 索引' }}
+    </div>
 
     <div class="rag-input-row">
       <input v-model="question" @keyup.enter="askQuestion" placeholder="输入问题..." />
@@ -28,16 +30,23 @@ const question = ref('')
 const answer = ref(null)
 const status = ref({})
 
-onMounted(async () => { status.value = await getRagStatus() })
+onMounted(refreshStatus)
+
+async function refreshStatus() {
+  status.value = await getRagStatus()
+}
 
 async function askQuestion() {
   if (!question.value) return
   answer.value = await queryRag(question.value)
 }
+
+defineExpose({ refreshStatus })
 </script>
 
 <style scoped>
-.rag-status { font-size: 10px; color: #888; margin-bottom: 8px; }
+.rag-status { font-size: 11px; color: #ffaa00; margin-bottom: 8px; }
+.rag-status.ready { color: #00ff88; }
 .rag-input-row { display: flex; gap: 4px; margin-bottom: 10px; }
 .rag-input-row input {
   flex: 1; padding: 6px 8px; background: #1a1a2e;

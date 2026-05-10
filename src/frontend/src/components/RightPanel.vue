@@ -10,27 +10,43 @@
     </div>
     <div class="tab-content">
       <IntegrationTab v-if="activeTab === 'integration'" />
-      <RagTab v-else-if="activeTab === 'rag'" />
+      <RagTab v-else-if="activeTab === 'rag'" ref="ragTab" />
       <DialogueTab v-else-if="activeTab === 'dialogue'" />
-      <ReportTab v-else />
+      <ReportTab v-else ref="reportTab" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import IntegrationTab from './IntegrationTab.vue'
 import RagTab from './RagTab.vue'
 import DialogueTab from './DialogueTab.vue'
 import ReportTab from './ReportTab.vue'
 
 const activeTab = ref('integration')
+const ragTab = ref(null)
+const reportTab = ref(null)
 const tabs = [
   { id: 'integration', label: '整合操作' },
   { id: 'rag', label: 'RAG问答' },
   { id: 'dialogue', label: '对话' },
   { id: 'report', label: '报告' }
 ]
+
+async function showRag() {
+  activeTab.value = 'rag'
+  await nextTick()
+  await ragTab.value?.refreshStatus()
+}
+
+async function showReport() {
+  activeTab.value = 'report'
+  await nextTick()
+  await reportTab.value?.refreshStatus()
+}
+
+defineExpose({ showRag, showReport })
 </script>
 
 <style scoped>

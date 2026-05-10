@@ -38,7 +38,18 @@
           <span class="book-status" :class="book.status">{{ statusText(book.status) }}</span>
         </div>
         <div class="book-actions" v-if="book.status === 'done'">
-          <button @click.stop="buildGraph(book.id)">构建图谱</button>
+          <button
+            @click.stop="buildGraph(book.id)"
+            :disabled="buildingBooks.includes(book.id)">
+            {{ buildingBooks.includes(book.id) ? '构建中...' : '构建图谱' }}
+          </button>
+          <div class="build-hint">
+            每次读取下一个约4000字片段并追加节点，约需1分钟。
+          </div>
+          <div class="build-progress" v-if="graphProgress[book.id]">
+            下次片段：{{ graphProgress[book.id].next_segment }}/{{ graphProgress[book.id].total_segments }}
+            <span v-if="graphProgress[book.id].is_complete"> · 已读完整本书</span>
+          </div>
         </div>
       </div>
     </div>
@@ -51,25 +62,60 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { uploadFile, getTextbooks, buildGraph as apiBuildGraph,
+import { ref, onMounted } from 'vue'
+import { uploadFile, getTextbooks, buildGraph as apiBuildGraph, getGraphBuildStatus,
          runIntegration, indexRag } from '../api.js'
 
 const textbooks = ref([])
 const selectedId = ref(null)
+const buildingBooks = ref([])
+const graphProgress = ref({})
 const emit = defineEmits(['select-book', 'graph-built', 'integration-done', 'rag-indexed'])
 
+onMounted(async () => {
+  try {
+    textbooks.value = await getTextbooks()
+    await refreshAllGraphProgress()
+  } catch (e) {
+    // 后端未启动时静默
+  }
+})
+
+async function refreshAllGraphProgress() {
+  const entries = await Promise.all(
+    textbooks.value.map(async book => [book.id, await getGraphBuildStatus(book.id).catch(() => null)])
+  )
+  graphProgress.value = Object.fromEntries(entries.filter(([, value]) => value))
+}
+
+async function refreshGraphProgress(id) {
+  const progress = await getGraphBuildStatus(id).catch(() => null)
+  if (progress) {
+    graphProgress.value = { ...graphProgress.value, [id]: progress }
+  }
+}
+
 async function handleFileSelect(e) {
-  for (const file of e.target.files) {
-    const book = await uploadFile(file)
-    textbooks.value.push(book)
+  try {
+    for (const file of e.target.files) {
+      const book = await uploadFile(file)
+      textbooks.value.push(book)
+      await refreshGraphProgress(book.id)
+    }
+  } catch (e) {
+    alert('上传失败：' + e.message)
   }
 }
 
 async function handleDrop(e) {
-  for (const file of e.dataTransfer.files) {
-    const book = await uploadFile(file)
-    textbooks.value.push(book)
+  try {
+    for (const file of e.dataTransfer.files) {
+      const book = await uploadFile(file)
+      textbooks.value.push(book)
+      await refreshGraphProgress(book.id)
+    }
+  } catch (e) {
+    alert('上传失败：' + e.message)
   }
 }
 
@@ -79,18 +125,43 @@ async function selectBook(book) {
 }
 
 async function buildGraph(id) {
-  await apiBuildGraph(id)
-  emit('graph-built', id)
+  buildingBooks.value = [...buildingBooks.value, id]
+  try {
+    const res = await apiBuildGraph(id)
+    if (res.status === 'done') {
+      emit('graph-built', id)
+      await refreshGraphProgress(id)
+      alert(
+        `构建完成：本次处理 ${res.segment_index}/${res.total_segments} 片段，` +
+        `新增 ${res.added_nodes || 0} 个节点、${res.added_edges || 0} 条关系；` +
+        `当前累计 ${res.nodes || 0} 个节点、${res.edges || 0} 条关系。`
+      )
+    } else {
+      alert('构建失败：' + JSON.stringify(res))
+    }
+  } catch (e) {
+    alert('构建图谱失败：' + e.message)
+  } finally {
+    buildingBooks.value = buildingBooks.value.filter(bid => bid !== id)
+  }
 }
 
 async function handleIntegrate() {
-  const result = await runIntegration()
-  emit('integration-done', result)
+  try {
+    const result = await runIntegration()
+    emit('integration-done', result)
+  } catch (e) {
+    alert('整合失败：' + e.message + '（请确认后端已启动）')
+  }
 }
 
 async function handleIndex() {
-  const result = await indexRag()
-  emit('rag-indexed', result)
+  try {
+    const result = await indexRag()
+    emit('rag-indexed', result)
+  } catch (e) {
+    alert('RAG索引失败：' + e.message + '（请确认后端已启动）')
+  }
 }
 
 function iconFor(format) {
@@ -153,6 +224,20 @@ h3 { font-size: 14px; color: #e94560; margin-bottom: 10px; }
   cursor: pointer;
 }
 .book-actions button:hover { background: #e94560; }
+
+.build-hint {
+  margin-top: 4px;
+  color: #ffaa00;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.build-progress {
+  margin-top: 2px;
+  color: #888;
+  font-size: 10px;
+  line-height: 1.35;
+}
 
 .global-actions { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
 .btn-integrate, .btn-index {

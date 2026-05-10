@@ -1,6 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from src.backend.routers.upload import textbook_store
-from src.backend.services.graph_builder import build_graph_for_textbook, get_graph, get_all_graphs
+from src.backend.services.graph_builder import (
+    build_graph_for_textbook,
+    get_all_graphs,
+    get_graph,
+    get_graph_progress,
+)
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
 
@@ -14,10 +19,25 @@ async def build_graph(textbook_id: str):
 
     build_status[textbook_id] = "building"
     textbook = textbook_store[textbook_id]
-    await build_graph_for_textbook(textbook)
-    build_status[textbook_id] = "done"
+    try:
+        result = await build_graph_for_textbook(textbook)
+    except Exception as e:
+        build_status[textbook_id] = "failed"
+        raise HTTPException(500, str(e)) from e
 
-    return {"status": "done", "textbook_id": textbook_id}
+    build_status[textbook_id] = "done"
+    return {
+        "status": "done",
+        "textbook_id": textbook_id,
+        "nodes": len(result.graph.nodes),
+        "edges": len(result.graph.edges),
+        "added_nodes": result.added_nodes,
+        "added_edges": result.added_edges,
+        "segment_index": result.segment_index,
+        "total_segments": result.total_segments,
+        "is_complete": result.is_complete,
+        "segment_title": result.segment_title,
+    }
 
 
 @router.get("/data/{textbook_id}")
@@ -53,4 +73,10 @@ async def get_merged_graph_data():
 
 @router.get("/build-status/{textbook_id}")
 async def get_build_status(textbook_id: str):
-    return {"textbook_id": textbook_id, "status": build_status.get(textbook_id, "not_started")}
+    textbook = textbook_store.get(textbook_id)
+    progress = get_graph_progress(textbook_id, textbook)
+    return {
+        "textbook_id": textbook_id,
+        "status": build_status.get(textbook_id, "not_started"),
+        **progress,
+    }

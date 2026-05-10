@@ -1,12 +1,35 @@
 import os
 import shutil
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from src.backend.config import UPLOAD_DIR
+from src.backend.config import PRELOADED_TEXTS_DIR, UPLOAD_DIR
 from src.backend.services.parser import parse_textbook
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
 textbook_store: dict = {}
+
+
+def preload_textbooks() -> int:
+    if not os.path.isdir(PRELOADED_TEXTS_DIR):
+        return 0
+
+    loaded = 0
+    for filename in sorted(os.listdir(PRELOADED_TEXTS_DIR)):
+        if not filename.lower().endswith(".txt"):
+            continue
+
+        file_path = os.path.join(PRELOADED_TEXTS_DIR, filename)
+        try:
+            textbook = parse_textbook(file_path)
+        except Exception as e:
+            print(f"预加载教材失败 [{filename}]: {e}")
+            continue
+
+        if textbook.id not in textbook_store:
+            textbook_store[textbook.id] = textbook
+            loaded += 1
+
+    return loaded
 
 
 @router.post("/upload")

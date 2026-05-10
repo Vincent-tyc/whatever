@@ -3,11 +3,13 @@
     <div class="report-section" v-if="status">
       <h4>整合概览</h4>
       <table class="report-table">
-        <tr><td>原始教材数</td><td>{{ textbookCount }}本</td></tr>
-        <tr><td>原始总字数</td><td>{{ formatSize(status.original_total_chars) }}</td></tr>
-        <tr><td>整合后字数</td><td class="green">{{ formatSize(status.merged_total_chars) }}</td></tr>
-        <tr><td>压缩比</td><td class="orange">{{ (status.compression_ratio * 100).toFixed(1) }}%</td></tr>
-        <tr><td>整合决策</td><td>合并{{ mergeCount }}项 · 保留{{ keepCount }}项 · 删除{{ removeCount }}项</td></tr>
+        <tbody>
+          <tr><td>原始教材数</td><td>{{ textbookCount }}本</td></tr>
+          <tr><td>原始总字数</td><td>{{ formatSize(status.original_total_chars) }}</td></tr>
+          <tr><td>整合后字数</td><td class="green">{{ formatSize(status.merged_total_chars) }}</td></tr>
+          <tr><td>压缩比</td><td class="orange">{{ (status.compression_ratio * 100).toFixed(1) }}%</td></tr>
+          <tr><td>整合决策</td><td>合并{{ mergeCount }}项 · 保留{{ keepCount }}项 · 删除{{ removeCount }}项</td></tr>
+        </tbody>
       </table>
     </div>
 
@@ -24,11 +26,13 @@ import { getIntegrationStatus, getTextbooks } from '../api.js'
 const status = ref(null)
 const textbookCount = ref(0)
 
-onMounted(async () => {
-  try { status.value = await getIntegrationStatus() } catch {}
+onMounted(refreshStatus)
+
+async function refreshStatus() {
+  try { status.value = await getIntegrationStatus() } catch { status.value = null }
   const books = await getTextbooks()
   textbookCount.value = books.length
-})
+}
 
 const mergeCount = computed(() => status.value?.decisions?.filter(d => d.action === 'merge').length || 0)
 const keepCount = computed(() => status.value?.decisions?.filter(d => d.action === 'keep').length || 0)
@@ -61,6 +65,8 @@ function exportReport() {
   const a = document.createElement('a')
   a.href = url; a.download = '整合报告.md'; a.click()
 }
+
+defineExpose({ refreshStatus })
 </script>
 
 <style scoped>

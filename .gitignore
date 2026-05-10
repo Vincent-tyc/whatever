@@ -1,4 +1,4 @@
-# 教材数据
+# 教材数据（PDF不入库，TXT教材需入库用于预加载）
 data/textbooks/*.pdf
 *.pdf
 
@@ -11,7 +11,19 @@ __pycache__/
 # Node
 node_modules/
 dist/
+.vite/
 
 # IDE
 .vscode/
 .idea/
+
+# Claude Code
+.claude/
+.superpowers/
+
+# 运行时数据
+data/uploads/
+data/textbooks/
+
+# 临时文件
+extracted_text.txt

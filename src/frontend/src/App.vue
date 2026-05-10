@@ -5,17 +5,37 @@
       <span class="subtitle">多教材知识图谱 · 跨教材整合 · RAG精准问答</span>
     </header>
     <div class="main-content">
-      <LeftPanel class="left-panel" />
-      <GraphView class="center-panel" />
-      <RightPanel class="right-panel" />
+      <LeftPanel class="left-panel"
+        @graph-built="onGraphBuilt"
+        @integration-done="onIntegrationDone"
+        @rag-indexed="onRagIndexed" />
+      <GraphView ref="graphView" class="center-panel" />
+      <RightPanel ref="rightPanel" class="right-panel" />
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import LeftPanel from './components/LeftPanel.vue'
 import GraphView from './components/GraphView.vue'
 import RightPanel from './components/RightPanel.vue'
+
+const graphView = ref(null)
+const rightPanel = ref(null)
+
+function onGraphBuilt() {
+  graphView.value?.loadGraph()
+}
+
+function onIntegrationDone() {
+  graphView.value?.loadGraph()
+  rightPanel.value?.showReport()
+}
+
+function onRagIndexed() {
+  rightPanel.value?.showRag()
+}
 </script>
 
 <style>

@@ -2,7 +2,7 @@ import numpy as np
 import faiss
 from openai import OpenAI
 from src.backend.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL
-from src.backend.services.embedder import encode_texts
+from src.backend.services.embedder import encode_texts, embedding_backend
 from src.backend.routers.upload import textbook_store
 from src.backend.models.schemas import RagChunk, RagAnswer, Citation
 
@@ -24,6 +24,8 @@ def chunk_textbook(textbook_id: str):
     textbook = textbook_store.get(textbook_id)
     if not textbook:
         return
+
+    chunk_store = [c for c in chunk_store if not c.chunk_id.startswith(f"chunk_{textbook_id}_")]
 
     for chapter in textbook.chapters:
         text = chapter.content
@@ -57,6 +59,7 @@ def build_faiss_index():
     dim = embeddings.shape[1]
     faiss_index = faiss.IndexFlatIP(dim)  # 内积相似度（归一化后等同余弦相似度）
     faiss_index.add(embeddings.astype(np.float32))
+    return embedding_backend()
 
 
 def search_chunks(query: str, top_k: int = 5) -> list[tuple[RagChunk, float]]:

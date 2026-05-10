@@ -16,6 +16,7 @@
     </div>
 
     <div ref="chartDom" class="chart-area"></div>
+    <div v-if="emptyMessage" class="empty-message">{{ emptyMessage }}</div>
 
     <div v-if="selectedNode" class="node-detail-overlay" @click.self="selectedNode = null">
       <div class="node-detail">
@@ -46,6 +47,7 @@ const edges = ref([])
 const textbookCount = ref(0)
 const searchText = ref('')
 const selectedNode = ref(null)
+const emptyMessage = ref('暂无图谱数据')
 const chartDom = ref(null)
 let chart = null
 
@@ -62,21 +64,51 @@ const legendColors = [
 onMounted(() => {
   chart = echarts.init(chartDom.value)
   window.addEventListener('resize', () => chart?.resize())
+  loadGraph()
 })
 
 async function loadGraph() {
-  const data = await getGraphData()
-  nodes.value = data.nodes || []
-  edges.value = data.edges || []
-  textbookCount.value = new Set(nodes.value.map(n => n.textbook_id)).size
-  renderChart()
+  try {
+    emptyMessage.value = '正在加载图谱...'
+    const data = await getGraphData()
+    nodes.value = data.nodes || []
+    edges.value = data.edges || []
+    textbookCount.value = new Set(nodes.value.map(n => n.textbook_id)).size
+    renderChart()
+  } catch (e) {
+    nodes.value = []
+    edges.value = []
+    textbookCount.value = 0
+    chart?.clear()
+    emptyMessage.value = `图谱加载失败：${e.message}`
+  }
 }
 
 function renderChart() {
-  if (!chart || nodes.value.length === 0) return
+  if (!chart) return
 
-  const graphNodes = nodes.value.map(n => ({
-    id: n.id,
+  if (nodes.value.length === 0) {
+    chart.clear()
+    emptyMessage.value = '暂无图谱数据，请先上传教材并点击构建图谱'
+    return
+  }
+
+  emptyMessage.value = ''
+
+  // 限制节点数，力导向图超过50个节点布局计算极慢
+  const MAX_DISPLAY = 50
+  const seenIds = new Set()
+  const displayNodes = nodes.value
+    .filter(n => n?.id && !seenIds.has(n.id) && seenIds.add(n.id))
+    .slice(0, MAX_DISPLAY)
+  const displayNodeIds = new Set(displayNodes.map(n => n.id))
+  const nodeNameById = new Map(displayNodes.map(n => [n.id, n.name]))
+  const displayEdges = edges.value.filter(
+    e => e?.source && e?.target && displayNodeIds.has(e.source) && displayNodeIds.has(e.target)
+  )
+
+  const graphNodes = displayNodes.map(n => ({
+    id: String(n.id),
     name: n.name,
     symbolSize: Math.min(18 + n.frequency * 10, 60),
     itemStyle: { color: n.color },
@@ -84,18 +116,48 @@ function renderChart() {
     data: n
   }))
 
-  const graphEdges = edges.value.map(e => ({
-    source: e.source,
-    target: e.target,
+  const graphEdges = displayEdges.map((e, index) => ({
+    id: `${e.source}->${e.target}-${index}`,
+    source: nodeNameById.get(e.source),
+    target: nodeNameById.get(e.target),
     lineStyle: {
-      color: '#666',
+      color: e.relation_type === 'parallel' ? 'rgba(148, 163, 184, 0.9)' : 'rgba(125, 211, 252, 0.95)',
       type: e.relation_type === 'parallel' ? 'dashed' : 'solid',
-      width: 1
+      width: e.relation_type === 'parallel' ? 1.6 : 2.2,
+      opacity: 0.9
     }
   }))
 
+  const connectedNodeNames = new Set()
+  graphEdges.forEach(edge => {
+    connectedNodeNames.add(edge.source)
+    connectedNodeNames.add(edge.target)
+  })
+
+  const supplementalEdges = []
+  for (let i = 1; i < graphNodes.length; i++) {
+    const prev = graphNodes[i - 1]
+    const current = graphNodes[i]
+    if (!connectedNodeNames.has(current.name) || graphEdges.length === 0) {
+      supplementalEdges.push({
+        id: `supplemental-${i}`,
+        source: prev.name,
+        target: current.name,
+        silent: true,
+        lineStyle: {
+          color: 'rgba(148, 163, 184, 0.35)',
+          type: 'dotted',
+          width: 1,
+          opacity: 0.55
+        }
+      })
+    }
+  }
+
+  chart.clear()
   chart.setOption({
-    backgroundColor: 'transparent',
+    backgroundColor: '#111827',
+    animation: false,
     tooltip: {
       formatter: (p) => {
         if (p.dataType === 'node') {
@@ -110,13 +172,21 @@ function renderChart() {
       layout: 'force',
       roam: true,
       draggable: true,
-      force: { repulsion: 300, edgeLength: [100, 250], gravity: 0.1 },
+      force: { repulsion: 200, edgeLength: [80, 200], gravity: 0.05, layoutAnimation: false },
       data: graphNodes,
-      edges: graphEdges,
-      label: { show: true, fontSize: 9, color: '#ccc' },
+      edges: [...graphEdges, ...supplementalEdges],
+      label: {
+        show: true,
+        fontSize: 10,
+        color: '#f8fafc',
+        textBorderColor: '#111827',
+        textBorderWidth: 3
+      },
       emphasis: { focus: 'adjacency', label: { fontSize: 12 } }
     }]
   })
+
+  chart.resize()
 
   chart.off('click')
   chart.on('click', (params) => {
@@ -178,7 +248,18 @@ defineExpose({ loadGraph })
 .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #888; }
 .legend-item .dot { width: 8px; height: 8px; border-radius: 50%; }
 
-.chart-area { flex: 1; }
+.chart-area { flex: 1; min-height: 400px; width: 100%; background: #111827; }
+
+.empty-message {
+  position: absolute;
+  inset: 44px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 13px;
+  pointer-events: none;
+}
 
 .node-detail-overlay {
   position: absolute;
