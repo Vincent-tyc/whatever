@@ -3,7 +3,8 @@ uvicorn[standard]==0.30.1
 python-multipart==0.0.9
 pymupdf==1.24.5
 sentence-transformers==3.0.1
-faiss-cpu==1.8.0
+faiss-cpu>=1.8.0  # Windows用户可通过 conda install -c pytorch faiss-cpu 安装
 numpy==1.26.4
+torch>=2.0.0
 openai==1.30.5
 python-dotenv==1.0.1
