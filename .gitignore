@@ -1,0 +1,17 @@
+# 教材数据
+data/textbooks/*.pdf
+*.pdf
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
