@@ -28,12 +28,14 @@ def _parse_pdf(file_path: str, file_id: str, filename: str) -> TextbookDetail:
     current_chapter = None
     chapter_idx = 0
 
-    for page_num in range(len(doc)):
+    total_pages = len(doc)
+
+    for page_num in range(total_pages):
         page = doc[page_num]
         text = page.get_text()
         full_text += text
 
-        chapter_match = re.match(r'^第[一二三四五六七八九十\d]+章\s+.+', text.strip())
+        chapter_match = re.search(r'第[一二三四五六七八九十\d]+章\s+.+', text.strip())
 
         if chapter_match or page_num == 0:
             if current_chapter:
@@ -56,7 +58,7 @@ def _parse_pdf(file_path: str, file_id: str, filename: str) -> TextbookDetail:
             current_chapter.content += "\n" + text
 
     if current_chapter:
-        current_chapter.page_end = len(doc)
+        current_chapter.page_end = total_pages
         current_chapter.content = current_chapter.content.strip()
         current_chapter.char_count = len(current_chapter.content)
         chapters.append(current_chapter)
@@ -73,7 +75,7 @@ def _parse_pdf(file_path: str, file_id: str, filename: str) -> TextbookDetail:
         format="pdf",
         size_bytes=size,
         status=ParseStatus.DONE,
-        total_pages=len(doc),
+        total_pages=total_pages,
         total_chars=len(full_text),
         chapters=chapters
     )
@@ -151,6 +153,8 @@ def _parse_txt(file_path: str, file_id: str, filename: str) -> TextbookDetail:
             chapter_content = page_text
         else:
             chapter_content += "\n" + page_text
+
+        page_start += 1
 
     if chapter_content.strip():
         chapters.append(Chapter(

@@ -11,6 +11,8 @@ textbook_store: dict = {}
 
 @router.post("/upload")
 async def upload_textbook(file: UploadFile = File(...)):
+    if not file.filename:
+        raise HTTPException(400, "文件名不能为空")
     allowed = {".pdf", ".md", ".txt"}
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed:
