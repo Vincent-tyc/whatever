@@ -18,10 +18,10 @@ async def health():
 
 
 # 后续任务注册路由
-from src.backend.routers import upload
+from src.backend.routers import upload, graph
 app.include_router(upload.router)
-# from src.backend.routers import graph, integration, rag, dialogue
-# app.include_router(graph.router)
+app.include_router(graph.router)
+# from src.backend.routers import integration, rag, dialogue
 # app.include_router(integration.router)
 # app.include_router(rag.router)
 # app.include_router(dialogue.router)
