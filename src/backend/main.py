@@ -21,8 +21,8 @@ async def health():
 from src.backend.routers import upload, graph
 app.include_router(upload.router)
 app.include_router(graph.router)
-# from src.backend.routers import integration, rag, dialogue
-# app.include_router(integration.router)
+from src.backend.routers import integration, rag, dialogue
+app.include_router(integration.router)
 # app.include_router(rag.router)
 # app.include_router(dialogue.router)
 
